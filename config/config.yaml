@@ -41,7 +41,7 @@ app:
 # ===============================================================
 schedule:
   enabled: true                         # 是否启用调度系统
-  preset: "morning_evening"             # 预设模板名称（见上方说明）
+  preset: "custom"                      # 预设模板名称（见上方说明）
 
 
 # ===============================================================
@@ -126,6 +126,80 @@ rss:
     - id: "yahoo-finance"
       name: "雅虎财经"
       url: "https://finance.yahoo.com/news/rssindex"
+
+    - id: "qbitai"
+      name: "量子位"
+      url: "https://www.qbitai.com/feed"
+      max_age_days: 3
+
+    - id: "jiqizhixin"
+      name: "机器之心"
+      url: "http://plink.anyfeeder.com/weixin/almosthuman2014"
+      max_age_days: 3
+
+    # ── 大佬博客 / Newsletter ──────────────────────────────────────
+    - id: "dan-koe"
+      name: "Dan Koe Newsletter"
+      url: "https://letters.thedankoe.com/feed"
+      max_age_days: 7               # 每周更新，避免被 1 天过滤
+
+    - id: "sam-altman"
+      name: "Sam Altman Blog"
+      url: "https://blog.samaltman.com/posts.atom"
+      max_age_days: 14              # 不定期更新
+
+    - id: "karpathy"
+      name: "Andrej Karpathy Blog"
+      url: "https://karpathy.bearblog.dev/rss/"
+      max_age_days: 14              # 不定期更新
+
+    - id: "naval-podcast"
+      name: "Naval Podcast"
+      url: "https://rss.libsyn.com/shows/166112/destinations/1103966.xml"
+      max_age_days: 30              # 极低频，保留 30 天
+
+    # ── 机构 / 媒体 ───────────────────────────────────────────────
+    - id: "openai-blog"
+      name: "OpenAI Blog"
+      url: "https://openai.com/blog/rss.xml"
+      max_age_days: 3
+
+    - id: "nvidia-blog"
+      name: "NVIDIA Blog"
+      url: "https://blogs.nvidia.com/feed/"
+      max_age_days: 3
+
+    - id: "a16z"
+      name: "a16z"
+      url: "https://www.a16z.news/feed"
+      max_age_days: 7
+
+    - id: "lenny-newsletter"
+      name: "Lenny's Newsletter"
+      url: "https://www.lennysnewsletter.com/feed"
+      max_age_days: 7
+
+    # ── YouTube AI 视频频道 ───────────────────────────────────────
+    # ── YouTube AI 视频频道（国内服务器无法访问 YouTube，已禁用）──
+    # 替代方案：手机 YouTube App 订阅 + 开通知，发视频直接弹
+    # 有代理后改 enabled: true 即可启用
+    - id: "theoretically-media"
+      name: "Theoretically Media"
+      url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC9Ryt3XOGYBoAJVsBHNGDzA"
+      enabled: false
+      max_age_days: 7
+
+    - id: "mattvidpro"
+      name: "MattVidPro AI"
+      url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC5Wz4fFacYuON6IKbhSa7Zw"
+      enabled: false
+      max_age_days: 7
+
+    - id: "higgsfield-ai"
+      name: "Higgsfield AI"
+      url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCh13OyDSm-Kb8ij3yZArtFg"
+      enabled: false
+      max_age_days: 7
 
     # 自定义源示例
     # - id: "custom-feed"
@@ -214,7 +288,7 @@ ai_filter:
   # 默认使用 config/ai_interests.txt，无需在此配置
   # 这里设置的是“全局默认”，可被 timeline.yaml 时段内的 interests_file 覆盖
   # 如需使用自定义文件，将文件放入 config/custom/ai/ 目录，然后指定文件名：
-  # interests_file: "finance.txt"    # → 加载 config/custom/ai/finance.txt
+  interests_file: "ai_video.txt"    # → 加载 config/custom/ai/ai_video.txt
 
   # 全量重分类触发阈值（0~1）
   # change_ratio >= 此值：全量重分类；否则增量更新

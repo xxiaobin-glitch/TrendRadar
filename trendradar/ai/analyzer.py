@@ -10,6 +10,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
+import requests
+
 from trendradar.ai.client import AIClient
 from trendradar.ai.prompt_loader import load_prompt_template
 
@@ -78,6 +80,7 @@ class AIAnalyzer:
         self.include_rank_timeline = analysis_config.get("INCLUDE_RANK_TIMELINE", False)
         self.include_standalone = analysis_config.get("INCLUDE_STANDALONE", False)
         self.language = analysis_config.get("LANGUAGE", "Chinese")
+        self.entity_verification = analysis_config.get("ENTITY_VERIFICATION", False)
 
         # 加载提示词模板
         self.system_prompt, self.user_prompt_template = load_prompt_template(
@@ -156,6 +159,28 @@ class AIAnalyzer:
         if not keywords:
             keywords = [s.get("word", "") for s in stats if s.get("word")] if stats else []
 
+        # 实体核查：查询新闻中 AI 不认识的专有名词，防止幻觉
+        enriched_news_content = news_content
+        if self.entity_verification and news_content:
+            uncertain = self._extract_uncertain_entities(news_content)
+            if uncertain:
+                print(f"[AI] 发现不确定实体: {uncertain}，正在网络核查...")
+                context_lines = []
+                for entity in uncertain:
+                    snippet = self._search_web(entity)
+                    if snippet:
+                        print(f"[AI] 核查到 {entity}: {snippet[:60]}...")
+                        context_lines.append(f"- {entity}: {snippet}")
+                    else:
+                        print(f"[AI] 未查到 {entity} 的信息，跳过")
+                if context_lines:
+                    enriched_news_content += (
+                        "\n\n## 实体背景（网络核实，分析时请优先采用，不要自行推测）\n"
+                        + "\n".join(context_lines)
+                    )
+            else:
+                print("[AI] 实体核查：无不确定词，跳过")
+
         # 使用安全的字符串替换，避免模板中其他花括号（如 JSON 示例）被误解析
         user_prompt = self.user_prompt_template
         user_prompt = user_prompt.replace("{report_mode}", report_mode)
@@ -165,7 +190,7 @@ class AIAnalyzer:
         user_prompt = user_prompt.replace("{rss_count}", str(rss_total))
         user_prompt = user_prompt.replace("{platforms}", ", ".join(platforms) if platforms else "多平台")
         user_prompt = user_prompt.replace("{keywords}", ", ".join(keywords[:20]) if keywords else "无")
-        user_prompt = user_prompt.replace("{news_content}", news_content)
+        user_prompt = user_prompt.replace("{news_content}", enriched_news_content)
         user_prompt = user_prompt.replace("{rss_content}", rss_content)
         user_prompt = user_prompt.replace("{language}", self.language)
 
@@ -401,6 +426,57 @@ class AIAnalyzer:
         except Exception as e:
             print(f"[AI] 重试修复 JSON 异常: {type(e).__name__}: {e}")
             return None
+
+    def _extract_uncertain_entities(self, news_content: str) -> List[str]:
+        """轻量 AI 调用：从新闻标题中提取 AI 不确定的专有名词。"""
+        lines = [l.strip() for l in news_content.split("\n") if l.strip().startswith("- ")]
+        if not lines:
+            return []
+        titles_text = "\n".join(lines[:40])
+        prompt = (
+            "从以下新闻标题中，找出你不确定含义的专有名词（工具名、品牌名、缩写、人名等）。\n"
+            "只列出真正不确定的词，不要标注常见词（如 GPT、OpenAI、抖音等）。\n"
+            "返回 JSON，格式: {\"uncertain\": [\"词1\", \"词2\"]}\n"
+            "没有不确定词时返回: {\"uncertain\": []}\n\n"
+            f"新闻标题:\n{titles_text}"
+        )
+        try:
+            response = self.client.chat(
+                [{"role": "user", "content": prompt}],
+                max_tokens=200,
+                temperature=0,
+            )
+            text = response.strip()
+            if "```" in text:
+                parts = text.split("```")
+                text = parts[1].lstrip("json").strip() if len(parts) > 1 else text
+            data = json.loads(text)
+            entities = data.get("uncertain", [])
+            return [str(e).strip() for e in entities if str(e).strip()][:5]
+        except Exception as e:
+            print(f"[AI] 实体提取异常: {e}")
+            return []
+
+    def _search_web(self, query: str) -> str:
+        """用 DuckDuckGo Instant Answer API 查询词条简介。"""
+        try:
+            resp = requests.get(
+                "https://api.duckduckgo.com/",
+                params={"q": query, "format": "json", "no_html": "1", "skip_disambig": "1"},
+                timeout=10,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            data = resp.json()
+            abstract = data.get("AbstractText", "").strip()
+            if abstract:
+                return abstract[:300]
+            for topic in data.get("RelatedTopics", [])[:2]:
+                if isinstance(topic, dict) and topic.get("Text"):
+                    return topic["Text"][:200]
+            return ""
+        except Exception as e:
+            print(f"[AI] 网络查询 {query!r} 失败: {e}")
+            return ""
 
     def _format_time_range(self, first_time: str, last_time: str) -> str:
         """格式化时间范围（简化显示，只保留时分）"""
